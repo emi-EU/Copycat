@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>MeowScrambler - Anti-Strike Tool</title>
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -27,10 +27,20 @@
       color: #ccc;
       margin-top: 10px;
     }
+    #log {
+      margin-top: 20px;
+      font-size: 0.9em;
+      color: #aaa;
+      white-space: pre-wrap;
+      text-align: left;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
   </style>
 </head>
 <body>
-  <h1>😼 MeowScrambler AAA</h1>
+  <h1>😼 MeowScrambler</h1>
   <p>Ajoute un filigrane et un cadre à ta vidéo sans te faire striker 🐾</p>
 
   <input type="file" id="videoInput" accept="video/mp4"><br>
@@ -43,57 +53,68 @@
   <button onclick="downloadVideo()">💾 Télécharger</button>
 
   <div id="loader">Chargement de FFmpeg ou traitement vidéo en cours...</div>
-
   <video id="preview" controls></video>
+  <div id="log"></div>
 
   <script>
     const { createFFmpeg, fetchFile } = FFmpeg;
     const ffmpeg = createFFmpeg({ log: true });
     let modifiedVideo;
+    let videoFile;
 
     const loader = document.getElementById('loader');
     const videoInput = document.getElementById('videoInput');
     const preview = document.getElementById('preview');
+    const logBox = document.getElementById('log');
 
     videoInput.addEventListener('change', () => {
       const file = videoInput.files[0];
       if (file) {
+        videoFile = file;
         const url = URL.createObjectURL(file);
         preview.src = url;
+        logBox.innerText = `Vidéo chargée : ${file.name}`;
       }
     });
 
     async function applyEffects() {
-      const file = videoInput.files[0];
-      if (!file) return alert("Choisis une vidéo MP4 !");
+      try {
+        if (!videoFile) return alert("Choisis une vidéo MP4 !");
+        loader.style.display = 'block';
+        logBox.innerText = "Chargement de FFmpeg...";
 
-      loader.style.display = 'block';
+        if (!ffmpeg.isLoaded()) await ffmpeg.load();
+        logBox.innerText = "FFmpeg prêt. Traitement en cours...";
 
-      const watermark = document.getElementById('watermarkText').value;
-      const opacity = parseFloat(document.getElementById('opacity').value);
-      const borderColor = document.getElementById('borderColor').value;
-      const borderWidth = parseInt(document.getElementById('borderWidth').value);
+        ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFile));
 
-      if (!ffmpeg.isLoaded()) await ffmpeg.load();
+        const watermark = document.getElementById('watermarkText').value;
+        const opacity = parseFloat(document.getElementById('opacity').value);
+        const borderColor = document.getElementById('borderColor').value;
+        const borderWidth = parseInt(document.getElementById('borderWidth').value);
 
-      ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
+        const drawtext = `drawtext=text='${watermark}':x=mod(x\\,w/5):y=mod(y\\,h/5):fontsize=24:fontcolor=white@${opacity}`;
+        const drawbox = `drawbox=0:0:iw:ih:${borderWidth}:${borderColor}`;
 
-      const drawtext = `drawtext=text='${watermark}':x=mod(x\\,w/5):y=mod(y\\,h/5):fontsize=24:fontcolor=white@${opacity}`;
-      const drawbox = `drawbox=0:0:iw:ih:${borderWidth}:${borderColor}`;
+        await ffmpeg.run(
+          '-i', 'input.mp4',
+          '-vf', `${drawtext},${drawbox}`,
+          '-preset', 'ultrafast',
+          'output.mp4'
+        );
 
-      await ffmpeg.run(
-        '-i', 'input.mp4',
-        '-vf', `${drawtext},${drawbox}`,
-        '-preset', 'ultrafast',
-        'output.mp4'
-      );
+        const data = ffmpeg.FS('readFile', 'output.mp4');
+        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+        modifiedVideo = URL.createObjectURL(videoBlob);
 
-      const data = ffmpeg.FS('readFile', 'output.mp4');
-      const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
-      modifiedVideo = URL.createObjectURL(videoBlob);
-
-      preview.src = modifiedVideo;
-      loader.style.display = 'none';
+        preview.src = modifiedVideo;
+        loader.style.display = 'none';
+        logBox.innerText = "✅ Traitement terminé ! Tu peux télécharger la vidéo.";
+      } catch (err) {
+        console.error(err);
+        logBox.innerText = "❌ Erreur : " + err.message;
+        loader.style.display = 'none';
+      }
     }
 
     function downloadVideo() {
