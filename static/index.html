@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>MeowScrambler - Anti-Strike Tool</title>
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -21,11 +20,6 @@
       margin-top: 20px;
       max-width: 90%;
       border: 2px solid #555;
-    }
-    #loader {
-      display: none;
-      color: #ccc;
-      margin-top: 10px;
     }
     #log {
       margin-top: 20px;
@@ -50,79 +44,58 @@
   <input type="number" id="borderWidth" placeholder="Épaisseur cadre" value="10">
   <br>
   <button onclick="applyEffects()">🔧 Appliquer</button>
-  <button onclick="downloadVideo()">💾 Télécharger</button>
+  <a id="downloadLink" style="display:none" download="video_modifiee.mp4">💾 Télécharger</a>
 
-  <div id="loader">Chargement de FFmpeg ou traitement vidéo en cours...</div>
   <video id="preview" controls></video>
   <div id="log"></div>
 
   <script>
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: true });
-    let modifiedVideo;
-    let videoFile;
-
-    const loader = document.getElementById('loader');
     const videoInput = document.getElementById('videoInput');
     const preview = document.getElementById('preview');
+    const downloadLink = document.getElementById('downloadLink');
     const logBox = document.getElementById('log');
 
+    let selectedFile = null;
+
     videoInput.addEventListener('change', () => {
-      const file = videoInput.files[0];
-      if (file) {
-        videoFile = file;
-        const url = URL.createObjectURL(file);
+      selectedFile = videoInput.files[0];
+      if (selectedFile) {
+        const url = URL.createObjectURL(selectedFile);
         preview.src = url;
-        logBox.innerText = `Vidéo chargée : ${file.name}`;
+        logBox.innerText = `Vidéo chargée : ${selectedFile.name}`;
+        downloadLink.style.display = 'none';
       }
     });
 
     async function applyEffects() {
+      if (!selectedFile) return alert("Choisis une vidéo MP4 !");
+      logBox.innerText = "Traitement en cours...";
+
+      const formData = new FormData();
+      formData.append("video", selectedFile);
+      formData.append("watermark", document.getElementById('watermarkText').value);
+      formData.append("opacity", document.getElementById('opacity').value);
+      formData.append("borderColor", document.getElementById('borderColor').value);
+      formData.append("borderWidth", document.getElementById('borderWidth').value);
+
       try {
-        if (!videoFile) return alert("Choisis une vidéo MP4 !");
-        loader.style.display = 'block';
-        logBox.innerText = "Chargement de FFmpeg...";
+        const res = await fetch("/process", {
+          method: "POST",
+          body: formData
+        });
 
-        if (!ffmpeg.isLoaded()) await ffmpeg.load();
-        logBox.innerText = "FFmpeg prêt. Traitement en cours...";
+        if (!res.ok) throw new Error(await res.text());
 
-        ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFile));
-
-        const watermark = document.getElementById('watermarkText').value;
-        const opacity = parseFloat(document.getElementById('opacity').value);
-        const borderColor = document.getElementById('borderColor').value;
-        const borderWidth = parseInt(document.getElementById('borderWidth').value);
-
-        const drawtext = `drawtext=text='${watermark}':x=mod(x\\,w/5):y=mod(y\\,h/5):fontsize=24:fontcolor=white@${opacity}`;
-        const drawbox = `drawbox=0:0:iw:ih:${borderWidth}:${borderColor}`;
-
-        await ffmpeg.run(
-          '-i', 'input.mp4',
-          '-vf', `${drawtext},${drawbox}`,
-          '-preset', 'ultrafast',
-          'output.mp4'
-        );
-
-        const data = ffmpeg.FS('readFile', 'output.mp4');
-        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
-        modifiedVideo = URL.createObjectURL(videoBlob);
-
-        preview.src = modifiedVideo;
-        loader.style.display = 'none';
-        logBox.innerText = "✅ Traitement terminé ! Tu peux télécharger la vidéo.";
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        preview.src = url;
+        downloadLink.href = url;
+        downloadLink.style.display = 'inline-block';
+        logBox.innerText = "✅ Vidéo prête ! Clique sur télécharger.";
       } catch (err) {
         console.error(err);
         logBox.innerText = "❌ Erreur : " + err.message;
-        loader.style.display = 'none';
       }
-    }
-
-    function downloadVideo() {
-      if (!modifiedVideo) return alert("Applique les effets d'abord !");
-      const a = document.createElement('a');
-      a.href = modifiedVideo;
-      a.download = 'video_modifiee.mp4';
-      a.click();
     }
   </script>
 </body>
