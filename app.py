@@ -1,51 +1,46 @@
+from flask import Flask, request, send_file, send_from_directory
 import os
-import uuid
+import tempfile
 import subprocess
-from flask import Flask, request, jsonify, send_file
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+UPLOAD_FOLDER = tempfile.gettempdir()
 
-UPLOAD_FOLDER = '/tmp'
-ALLOWED_EXTENSIONS = {'mp4'}
-FONT_PATH = 'app/fonts/Montserrat-Bold.ttf'  # Chemin vers ta police
-WATERMARK_TEXT = '@meow'
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
+@app.route('/')
+def index():
+    return send_from_directory('static', 'index.html')
 
 @app.route('/process', methods=['POST'])
 def process():
-    if 'video' not in request.files:
-        return jsonify({'error': 'No video file provided'}), 400
+    video = request.files.get('video')
+    watermark = request.form.get('watermark')
+    opacity = request.form.get('opacity')
+    border_color = request.form.get('borderColor')
+    border_width = request.form.get('borderWidth')
 
-    file = request.files['video']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+    # Logs de debug
+    print("WATERMARK:", watermark)
+    print("OPACITY:", opacity)
+    print("BORDER COLOR:", border_color)
+    print("BORDER WIDTH:", border_width)
 
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Unsupported file type'}), 400
+    if not all([video, watermark, opacity, border_color, border_width]):
+        return "Erreur : champs manquants", 400
 
-    input_filename = f"{uuid.uuid4()}.mp4"
-    input_path = os.path.join(UPLOAD_FOLDER, input_filename)
-    file.save(input_path)
+    filename = secure_filename(video.filename)
+    input_path = os.path.join(UPLOAD_FOLDER, filename)
+    output_path = os.path.join(UPLOAD_FOLDER, "output.mp4")
+    video.save(input_path)
 
-    output_filename = f"output_{uuid.uuid4()}.mp4"
-    output_path = os.path.join(UPLOAD_FOLDER, output_filename)
-
-    # Personnalisation watermark
-    opacity = 0.2
-    border_width = 10
-    border_color = "#ffffff"
-    watermark = WATERMARK_TEXT
-    font_path = FONT_PATH
+    # Ajout du chemin vers la police Montserrat Bold
+    font_path = "/app/fonts/Montserrat-Bold.ttf"
 
     drawtext = (
         f"drawtext=fontfile='{font_path}':"
         f"text='{watermark}':"
         f"x=mod(x\\,w/5):y=mod(y\\,h/5):"
-        f"fontsize=24:fontcolor=white:alpha={opacity}:"
+        f"fontsize=24:fontcolor=white@{opacity}:"
         f"borderw=0"
     )
     drawbox = f"drawbox=0:0:iw:ih:{border_width}:{border_color}"
@@ -58,16 +53,17 @@ def process():
             '-y', output_path
         ], check=True)
 
-        return send_file(output_path, as_attachment=True)
-
+        return send_file(output_path, mimetype='video/mp4')
     except subprocess.CalledProcessError as e:
-        return jsonify({'error': f"Erreur FFmpeg: {e}"}), 500
+        print("FFmpeg error output:", e)
+        return f"Erreur FFmpeg: {str(e)}", 500
+    finally:
+        if os.path.exists(input_path): os.remove(input_path)
+        if os.path.exists(output_path): os.remove(output_path)
 
-
-@app.route('/')
-def home():
-    return 'Service de watermark opérationnel.'
-
+@app.route('/static/<path:path>')
+def serve_static(path):
+    return send_from_directory('static', path)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
