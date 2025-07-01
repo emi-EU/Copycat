@@ -33,7 +33,14 @@ def process():
     output_path = os.path.join(UPLOAD_FOLDER, "output.mp4")
     video.save(input_path)
 
-    drawtext = f"drawtext=text='{watermark}':x=mod(x\\,w/5):y=mod(y\\,h/5):fontsize=24:fontcolor=white@{opacity}"
+    # Ajout du chemin vers la police Montserrat Bold
+    font_path = os.path.abspath("fonts/Montserrat-Bold.ttf")
+
+    drawtext = (
+        f"drawtext=fontfile='{font_path}':"
+        f"text='{watermark}':x=mod(x\\,w/5):y=mod(y\\,h/5):"
+        f"fontsize=24:fontcolor=white@{opacity}"
+    )
     drawbox = f"drawbox=0:0:iw:ih:{border_width}:{border_color}"
 
     try:
