@@ -34,14 +34,24 @@ def process():
     video.save(input_path)
 
     # Ajout du chemin vers la police Montserrat Bold
-    font_path = os.path.abspath("fonts/Montserrat-Bold.ttf")
-
+    font_path = "/app/fonts/Montserrat-Bold.ttf"
+    
     drawtext = (
         f"drawtext=fontfile='{font_path}':"
-        f"text='{watermark}':x=mod(x\\,w/5):y=mod(y\\,h/5):"
-        f"fontsize=24:fontcolor=white@{opacity}"
+        f"text='{watermark}':"
+        f"x=mod(x\\,w/5):y=mod(y\\,h/5):"
+        f"fontsize=24:fontcolor=white@{opacity}:"
+        f"borderw=0"
     )
     drawbox = f"drawbox=0:0:iw:ih:{border_width}:{border_color}"
+    
+    subprocess.run([
+        'ffmpeg', '-i', input_path,
+        '-vf', f"{drawtext},{drawbox}",
+        '-preset', 'ultrafast',
+        '-y', output_path
+    ], check=True)
+
 
     try:
         subprocess.run([
