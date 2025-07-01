@@ -13,11 +13,20 @@ def index():
 
 @app.route('/process', methods=['POST'])
 def process():
-    video = request.files['video']
-    watermark = request.form['watermark']
-    opacity = request.form['opacity']
-    border_color = request.form['borderColor']
-    border_width = request.form['borderWidth']
+    video = request.files.get('video')
+    watermark = request.form.get('watermark')
+    opacity = request.form.get('opacity')
+    border_color = request.form.get('borderColor')
+    border_width = request.form.get('borderWidth')
+
+    # Logs de debug
+    print("WATERMARK:", watermark)
+    print("OPACITY:", opacity)
+    print("BORDER COLOR:", border_color)
+    print("BORDER WIDTH:", border_width)
+
+    if not all([video, watermark, opacity, border_color, border_width]):
+        return "Erreur : champs manquants", 400
 
     filename = secure_filename(video.filename)
     input_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -37,7 +46,8 @@ def process():
 
         return send_file(output_path, mimetype='video/mp4')
     except subprocess.CalledProcessError as e:
-        return f"Erreur FFmpeg: {e}", 500
+        print("FFmpeg error output:", e)
+        return f"Erreur FFmpeg: {str(e)}", 500
     finally:
         if os.path.exists(input_path): os.remove(input_path)
         if os.path.exists(output_path): os.remove(output_path)
@@ -47,4 +57,4 @@ def serve_static(path):
     return send_from_directory('static', path)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
