@@ -1,16 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>MeowScrambler</title>
+  <title>MeowScrambler - Anti-Strike Tool</title>
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.8/dist/ffmpeg.min.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 50px; background: #0f0f0f; color: #fff; }
-    .title { font-size: 3em; margin-bottom: 0.5em; }
-    .desc { font-size: 1.2em; color: #ccc; }
+    body { font-family: Arial, sans-serif; background: #0f0f0f; color: #fff; text-align: center; padding: 2em; }
+    input, button, select { margin: 10px; padding: 10px; font-size: 1em; }
+    canvas { margin-top: 20px; }
+    #preview { max-width: 100%; margin-top: 20px; }
   </style>
 </head>
 <body>
-  <div class="title">😼 MeowScrambler</div>
-  <div class="desc">Un outil furtif pour brouiller l’empreinte de tes vidéos.</div>
+  <h1>😼 MeowScrambler</h1>
+  <p>Ajoute un filigrane et un cadre à ta vidéo sans te faire striker 🐾</p>
+
+  <input type="file" id="videoInput" accept="video/mp4"><br>
+  <input type="text" id="watermarkText" placeholder="Texte filigrane" value="@meow">
+  <input type="number" id="opacity" min="0" max="1" step="0.1" value="0.2">
+  <input type="color" id="borderColor" value="#ffffff">
+  <input type="number" id="borderWidth" placeholder="Épaisseur cadre" value="10">
+  <br>
+  <button onclick="applyEffects()">🔧 Appliquer</button>
+  <button onclick="downloadVideo()">💾 Télécharger</button>
+
+  <video id="preview" controls></video>
+
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true });
+    let modifiedVideo;
+
+    async function applyEffects() {
+      const file = document.getElementById('videoInput').files[0];
+      if (!file) return alert("Choisis une vidéo MP4 !");
+
+      const watermark = document.getElementById('watermarkText').value;
+      const opacity = parseFloat(document.getElementById('opacity').value);
+      const borderColor = document.getElementById('borderColor').value;
+      const borderWidth = parseInt(document.getElementById('borderWidth').value);
+
+      if (!ffmpeg.isLoaded()) await ffmpeg.load();
+
+      ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
+
+      const drawtext = `drawtext=text='${watermark}':x=mod(x\,w/5):y=mod(y\,h/5):fontsize=24:fontcolor=white@${opacity}`;
+      const drawbox = `drawbox=0:0:iw:ih:${borderWidth}:${borderColor}`;
+
+      await ffmpeg.run(
+        '-i', 'input.mp4',
+        '-vf', `${drawtext},${drawbox}`,
+        '-preset', 'ultrafast',
+        'output.mp4'
+      );
+
+      const data = ffmpeg.FS('readFile', 'output.mp4');
+      const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+      modifiedVideo = URL.createObjectURL(videoBlob);
+
+      document.getElementById('preview').src = modifiedVideo;
+    }
+
+    function downloadVideo() {
+      if (!modifiedVideo) return alert("Applique les effets d'abord !");
+      const a = document.createElement('a');
+      a.href = modifiedVideo;
+      a.download = 'video_modifiee.mp4';
+      a.click();
+    }
+  </script>
 </body>
 </html>
