@@ -5,10 +5,28 @@
   <title>MeowScrambler - Anti-Strike Tool</title>
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.8/dist/ffmpeg.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; background: #0f0f0f; color: #fff; text-align: center; padding: 2em; }
-    input, button, select { margin: 10px; padding: 10px; font-size: 1em; }
-    canvas { margin-top: 20px; }
-    #preview { max-width: 100%; margin-top: 20px; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      text-align: center;
+      padding: 2em;
+    }
+    input, button {
+      margin: 10px;
+      padding: 10px;
+      font-size: 1em;
+    }
+    video {
+      margin-top: 20px;
+      max-width: 90%;
+      border: 2px solid #555;
+    }
+    #loader {
+      display: none;
+      color: #ccc;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -24,6 +42,8 @@
   <button onclick="applyEffects()">🔧 Appliquer</button>
   <button onclick="downloadVideo()">💾 Télécharger</button>
 
+  <div id="loader">Chargement de FFmpeg ou traitement vidéo en cours...</div>
+
   <video id="preview" controls></video>
 
   <script>
@@ -31,9 +51,23 @@
     const ffmpeg = createFFmpeg({ log: true });
     let modifiedVideo;
 
+    const loader = document.getElementById('loader');
+    const videoInput = document.getElementById('videoInput');
+    const preview = document.getElementById('preview');
+
+    videoInput.addEventListener('change', () => {
+      const file = videoInput.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        preview.src = url;
+      }
+    });
+
     async function applyEffects() {
-      const file = document.getElementById('videoInput').files[0];
+      const file = videoInput.files[0];
       if (!file) return alert("Choisis une vidéo MP4 !");
+
+      loader.style.display = 'block';
 
       const watermark = document.getElementById('watermarkText').value;
       const opacity = parseFloat(document.getElementById('opacity').value);
@@ -44,7 +78,7 @@
 
       ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
 
-      const drawtext = `drawtext=text='${watermark}':x=mod(x\,w/5):y=mod(y\,h/5):fontsize=24:fontcolor=white@${opacity}`;
+      const drawtext = `drawtext=text='${watermark}':x=mod(x\\,w/5):y=mod(y\\,h/5):fontsize=24:fontcolor=white@${opacity}`;
       const drawbox = `drawbox=0:0:iw:ih:${borderWidth}:${borderColor}`;
 
       await ffmpeg.run(
@@ -58,7 +92,8 @@
       const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
       modifiedVideo = URL.createObjectURL(videoBlob);
 
-      document.getElementById('preview').src = modifiedVideo;
+      preview.src = modifiedVideo;
+      loader.style.display = 'none';
     }
 
     function downloadVideo() {
